@@ -455,9 +455,21 @@ func _extract_parent_node(request_context: Dictionary) -> Node:
 
 func _build_placement_options(request_context: Dictionary) -> Dictionary:
 	var options := {}
-	for key in ["position", "rotation", "rotation_degrees", "scale", "world_environment"]:
+	if request_context.has("world_environment"):
+		options["world_environment"] = request_context["world_environment"]
+
+	if request_context.has("transform"):
+		options["transform"] = request_context.get("transform", {})
+		return options
+
+	var legacy_transform := {}
+	for key in ["position", "rotation_degrees", "scale"]:
 		if request_context.has(key):
-			options[key] = request_context[key]
+			legacy_transform[key] = request_context[key]
+	if not legacy_transform.is_empty():
+		options["transform"] = legacy_transform
+	if request_context.has("rotation"):
+		options["rotation"] = request_context["rotation"]
 	return options
 
 func _ensure_gaussian_manager() -> AeroGaussianSplatManager:

@@ -43,9 +43,11 @@ func test_load_place_rotate_and_unload_splat() -> void:
 	var absolute_path := ProjectSettings.globalize_path(SAMPLE_PLY)
 
 	var load_result := manager.load_splat(absolute_path, parent, {
-		"position": {"x": 1, "y": 2, "z": 3},
-		"rotation": [0.0, deg_to_rad(45.0), 0.0],
-		"scale": [2, 2, 2],
+		"transform": {
+			"position": {"x": 1, "y": 2, "z": 3},
+			"rotation_degrees": [0.0, 45.0, 0.0],
+			"scale": [2, 2, 2],
+		},
 		"world_environment": world_environment,
 	})
 	assert_true(load_result.get("ok", false), load_result.get("message", "Expected sample PLY to load and attach"))
@@ -70,6 +72,41 @@ func test_load_place_rotate_and_unload_splat() -> void:
 	assert_true(unload_result.get("ok", false), "unload_splat should succeed for a valid node")
 	await get_tree().process_frame
 	assert_false(is_instance_valid(node), "unload_splat should queue_free the node")
+
+func test_place_splat_prefers_nested_transform_contract() -> void:
+	var manager := AeroGaussianSplatManager.new()
+	var node := Node3D.new()
+	add_child_autofree(manager)
+	add_child_autofree(node)
+	var result := manager.place_splat(node, null, {
+		"transform": {
+			"position": [4, 5, 6],
+			"rotation_degrees": {"x": 0, "y": 15, "z": 0},
+			"scale": [0.75, 0.75, 0.75],
+		},
+	})
+	assert_true(result.get("ok", false), result.get("message", "Nested transform placement should succeed"))
+	assert_true(result.get("transform_applied", false), "Nested transform placement should report that a transform was applied")
+	assert_false(result.get("compatibility", {}).get("used_flat_transform_keys", true), "Nested transform placement should not rely on the legacy flat-key seam")
+	assert_eq(node.position, Vector3(4, 5, 6))
+	assert_almost_eq(node.rotation_degrees.y, 15.0, 0.001)
+	assert_eq(node.scale, Vector3(0.75, 0.75, 0.75))
+
+func test_place_splat_keeps_documented_flat_transform_compatibility_seam() -> void:
+	var manager := AeroGaussianSplatManager.new()
+	var node := Node3D.new()
+	add_child_autofree(manager)
+	add_child_autofree(node)
+	var result := manager.place_splat(node, null, {
+		"position": [1, 2, 3],
+		"rotation_degrees": [0, 30, 0],
+		"scale": [2, 2, 2],
+	})
+	assert_true(result.get("ok", false), result.get("message", "Legacy flat transform placement should remain temporarily supported"))
+	assert_true(result.get("compatibility", {}).get("used_flat_transform_keys", false), "Flat transform placement should report the compatibility seam")
+	assert_eq(result.get("transform", {}).get("position", Vector3.ZERO), Vector3(1, 2, 3))
+	assert_almost_eq(result.get("transform", {}).get("rotation_degrees", Vector3.ZERO).y, 30.0, 0.001)
+	assert_eq(result.get("transform", {}).get("scale", Vector3.ONE), Vector3(2, 2, 2))
 
 func test_contract_fulfillment_accepts_typed_request_and_returns_typed_result() -> void:
 	var fulfillment := AeroGaussianSplatEnvironmentFulfillment.new()
@@ -96,7 +133,7 @@ func test_contract_fulfillment_applies_config_and_can_configure_world_environmen
 	var temp_dir := ProjectSettings.globalize_path("user://gaussian_splat_contract_tests")
 	DirAccess.make_dir_recursive_absolute(temp_dir)
 	var config_path := "%s/demo.json" % temp_dir
-	FileAccess.open(config_path, FileAccess.WRITE).store_string('{"position":[1,2,3],"rotation_degrees":{"x":0,"y":90,"z":0},"scale":[2,2,2]}')
+	FileAccess.open(config_path, FileAccess.WRITE).store_string('{"transform":{"position":[1,2,3],"rotation_degrees":{"x":0,"y":90,"z":0},"scale":[2,2,2]}}')
 	var world_environment := WorldEnvironment.new()
 	var request := {
 		"request_id": "req-splat-config",
@@ -136,9 +173,11 @@ func test_contract_fulfillment_attaches_to_parent_and_reports_transform() -> voi
 		"asset_path": ProjectSettings.globalize_path(SAMPLE_COMPRESSED_PLY),
 		"context": {
 			"parent": parent,
-			"position": [1, 2, 3],
-			"rotation_degrees": {"x": 0, "y": 30, "z": 0},
-			"scale": Vector3(1.5, 1.5, 1.5),
+			"transform": {
+				"position": [1, 2, 3],
+				"rotation_degrees": {"x": 0, "y": 30, "z": 0},
+				"scale": Vector3(1.5, 1.5, 1.5),
+			},
 		},
 	}
 	var result = fulfillment.fulfill(request)

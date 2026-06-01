@@ -18,6 +18,14 @@ anything generated under `.testbed/addons/` is disposable mirror state.
 
 `AeroGaussianSplatManager` is responsible for loading, placing, rotating, and unloading gaussian splats.
 
+The canonical consumer-facing placement contract is now nested under `options.transform` with:
+
+- `position`
+- `rotation_degrees`
+- `scale`
+
+A narrow temporary compatibility seam still accepts flat top-level `position` / `rotation_degrees` / `scale` keys for direct tool callers while downstream repos finish migrating, but new code should treat nested `transform` as the only stable public contract.
+
 Core methods:
 
 - `load_gaussian_resource_from_path(absolute_path)`
@@ -57,6 +65,7 @@ work to `AeroGaussianSplatManager`.
 - enforce the current official environment contract for `.compressed.ply`
 - return typed `AeroEnvironmentResult` / `AeroEnvironmentError`
 - apply sidecar transform config after load
+- consume placement requests through `context.transform`
 - optionally configure a provided `WorldEnvironment`
 - bridge async runtime progress into contract progress/result/error objects
 
@@ -110,8 +119,11 @@ var manager := AeroGaussianSplatManager.new()
 add_child(manager)
 
 var result := manager.load_splat("/absolute/path/to/scene.ply", self, {
-    "position": Vector3(0, 0, 0),
-    "rotation_degrees": Vector3(0, 45, 0),
+    "transform": {
+        "position": Vector3(0, 0, 0),
+        "rotation_degrees": Vector3(0, 45, 0),
+        "scale": Vector3.ONE,
+    },
 })
 if result.ok:
     print("Loaded %d points" % int(result.point_count))
@@ -143,7 +155,14 @@ var fulfillment := AeroGaussianSplatEnvironmentFulfillment.new(manager)
 var result = fulfillment.fulfill(AeroEnvironmentRequest.new({
     "request_id": "req-1",
     "kind": "splat",
-    "asset_path": "/absolute/path/to/scene.compressed.ply"
+    "asset_path": "/absolute/path/to/scene.compressed.ply",
+    "context": {
+        "transform": {
+            "position": [0, 0, 0],
+            "rotation_degrees": [0, 45, 0],
+            "scale": [1, 1, 1]
+        }
+    }
 }))
 if result.ok:
     add_child(result.details["node"])

@@ -19,9 +19,11 @@ func _ready() -> void:
 
 	var sample_path := ProjectSettings.globalize_path("res://assets/splats/demo.ply")
 	var result := _tool_manager.load_splat(sample_path, _splat_anchor, {
-		"position": LOAD_POSITION,
-		"rotation_degrees": LOAD_ROTATION_DEGREES,
-		"scale": LOAD_SCALE,
+		"transform": {
+			"position": LOAD_POSITION,
+			"rotation_degrees": LOAD_ROTATION_DEGREES,
+			"scale": LOAD_SCALE,
+		},
 		"world_environment": _world_environment,
 	})
 	_last_load_result = result.duplicate(true)

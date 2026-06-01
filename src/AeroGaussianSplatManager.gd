@@ -21,6 +21,7 @@ func load_splat(asset_path: String, parent: Node = null, options: Dictionary = {
 	load_result["transform_applied"] = placement_result.get("transform_applied", false)
 	load_result["transform"] = placement_result.get("transform", {})
 	load_result["world_environment_configured"] = placement_result.get("world_environment_configured", false)
+	load_result["compatibility"] = placement_result.get("compatibility", {})
 	return load_result
 
 func place_splat(node: Node3D, parent: Node = null, options: Dictionary = {}) -> Dictionary:
@@ -33,12 +34,17 @@ func place_splat(node: Node3D, parent: Node = null, options: Dictionary = {}) ->
 		elif node.get_parent() != parent:
 			node.reparent(parent)
 
-	var transform_result := _apply_splat_options(node, options)
+	var normalized_options_result := _normalize_placement_options(options)
+	if not normalized_options_result.get("ok", false):
+		return _error(ERR_INVALID_PARAMETER, String(normalized_options_result.get("message", "Gaussian splat options were invalid")))
+	var normalized_options: Dictionary = normalized_options_result.get("options", {})
+
+	var transform_result := _apply_splat_options(node, normalized_options)
 	if not transform_result.get("ok", false):
 		return _error(ERR_INVALID_PARAMETER, String(transform_result.get("message", "Gaussian splat options were invalid")))
 
 	var world_environment_configured := false
-	var world_environment: Variant = options.get("world_environment", null)
+	var world_environment: Variant = normalized_options.get("world_environment", null)
 	if world_environment is WorldEnvironment:
 		configure_world_environment(world_environment as WorldEnvironment)
 		world_environment_configured = world_environment.compositor != null and world_environment.compositor.compositor_effects.size() > 0
@@ -51,6 +57,7 @@ func place_splat(node: Node3D, parent: Node = null, options: Dictionary = {}) ->
 		"transform_applied": transform_result.get("applied", false),
 		"transform": _build_transform_report(node),
 		"world_environment_configured": world_environment_configured,
+		"compatibility": normalized_options_result.get("compatibility", {}),
 	}
 
 func rotate_splat(node: Node3D, rotation_degrees: Vector3) -> Dictionary:
@@ -73,34 +80,83 @@ func unload_splat(node: Node) -> Dictionary:
 		"unloaded": true,
 	}
 
-func _apply_splat_options(node: Node3D, options: Dictionary) -> Dictionary:
-	var applied := false
+func get_default_transform() -> Dictionary:
+	return {
+		"position": Vector3.ZERO,
+		"rotation_degrees": Vector3.ZERO,
+		"scale": Vector3.ONE,
+	}
 
-	if options.has("position"):
-		var position_result := _coerce_vector3_option(options["position"], "position")
-		if not position_result.get("ok", false):
-			return position_result
-		node.position = position_result["value"]
-		applied = true
+func normalize_transform(transform_config: Dictionary) -> Dictionary:
+	var result := _normalize_transform_result(transform_config)
+	if result.get("ok", false):
+		return result.get("transform", get_default_transform())
+	return get_default_transform()
 
-	if options.has("rotation_degrees"):
-		var rotation_degrees_result := _coerce_vector3_option(options["rotation_degrees"], "rotation_degrees")
-		if not rotation_degrees_result.get("ok", false):
-			return rotation_degrees_result
-		node.rotation_degrees = rotation_degrees_result["value"]
-		applied = true
-	elif options.has("rotation"):
+func _normalize_placement_options(options: Dictionary) -> Dictionary:
+	var normalized_options := {
+		"world_environment": options.get("world_environment", null),
+	}
+	var compatibility := {
+		"used_flat_transform_keys": false,
+		"used_flat_rotation_radians": false,
+	}
+
+	if options.has("transform"):
+		var transform_value: Variant = options.get("transform", {})
+		if not (transform_value is Dictionary):
+			return {
+				"ok": false,
+				"message": "Gaussian splat option 'transform' must be a Dictionary.",
+			}
+		var normalized_transform_result := _normalize_transform_result(Dictionary(transform_value))
+		if not normalized_transform_result.get("ok", false):
+			return normalized_transform_result
+		normalized_options["transform"] = normalized_transform_result["transform"]
+	elif options.has("position") or options.has("rotation_degrees") or options.has("scale"):
+		compatibility["used_flat_transform_keys"] = true
+		var legacy_transform := {}
+		if options.has("position"):
+			legacy_transform["position"] = options["position"]
+		if options.has("rotation_degrees"):
+			legacy_transform["rotation_degrees"] = options["rotation_degrees"]
+		if options.has("scale"):
+			legacy_transform["scale"] = options["scale"]
+		var normalized_legacy_transform_result := _normalize_transform_result(legacy_transform)
+		if not normalized_legacy_transform_result.get("ok", false):
+			return normalized_legacy_transform_result
+		normalized_options["transform"] = normalized_legacy_transform_result["transform"]
+
+	if options.has("rotation") and not options.has("transform") and not options.has("rotation_degrees"):
 		var rotation_result := _coerce_vector3_option(options["rotation"], "rotation")
 		if not rotation_result.get("ok", false):
 			return rotation_result
-		node.rotation = rotation_result["value"]
+		normalized_options["legacy_rotation"] = rotation_result["value"]
+		compatibility["used_flat_rotation_radians"] = true
+
+	return {
+		"ok": true,
+		"options": normalized_options,
+		"compatibility": compatibility,
+	}
+
+func _apply_splat_options(node: Node3D, options: Dictionary) -> Dictionary:
+	var applied := false
+	var transform := _dictionary_or_empty(options.get("transform", {}))
+
+	if transform.has("position"):
+		node.position = transform["position"]
 		applied = true
 
-	if options.has("scale"):
-		var scale_result := _coerce_vector3_option(options["scale"], "scale")
-		if not scale_result.get("ok", false):
-			return scale_result
-		node.scale = scale_result["value"]
+	if transform.has("rotation_degrees"):
+		node.rotation_degrees = transform["rotation_degrees"]
+		applied = true
+	elif options.has("legacy_rotation"):
+		node.rotation = options["legacy_rotation"]
+		applied = true
+
+	if transform.has("scale"):
+		node.scale = transform["scale"]
 		applied = true
 
 	return {
@@ -127,6 +183,20 @@ func _coerce_vector3_option(value: Variant, option_name: String) -> Dictionary:
 	return {
 		"ok": false,
 		"message": "Gaussian splat option '%s' must be a Vector3, [x, y, z] array, or {x, y, z} dictionary" % option_name,
+	}
+
+func _normalize_transform_result(transform_config: Dictionary) -> Dictionary:
+	var normalized := get_default_transform()
+	for key in ["position", "rotation_degrees", "scale"]:
+		if not transform_config.has(key):
+			continue
+		var value_result := _coerce_vector3_option(transform_config[key], "transform.%s" % key)
+		if not value_result.get("ok", false):
+			return value_result
+		normalized[key] = value_result["value"]
+	return {
+		"ok": true,
+		"transform": normalized,
 	}
 
 func _build_transform_report(node: Node3D) -> Dictionary:
@@ -156,3 +226,8 @@ func _build_parent_report(node: Node3D) -> Dictionary:
 		"name": String(parent_node.name),
 		"path": String(parent_node.get_path()) if node.is_inside_tree() else String(parent_node.name),
 	}
+
+func _dictionary_or_empty(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		return Dictionary(value).duplicate(true)
+	return {}
