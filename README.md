@@ -64,7 +64,7 @@ work to `AeroGaussianSplatManager`.
 - accept a `Dictionary` request or typed `AeroEnvironmentRequest`
 - enforce the current official environment contract for `.compressed.ply`
 - return typed `AeroEnvironmentResult` / `AeroEnvironmentError`
-- apply sidecar transform config after load
+- apply YAML sidecar transform config after load (`.config.yaml`)
 - consume placement requests through `context.transform`
 - optionally configure a provided `WorldEnvironment`
 - bridge async runtime progress into contract progress/result/error objects

@@ -132,8 +132,8 @@ func test_contract_fulfillment_applies_config_and_can_configure_world_environmen
 	var fulfillment := AeroGaussianSplatEnvironmentFulfillment.new()
 	var temp_dir := ProjectSettings.globalize_path("user://gaussian_splat_contract_tests")
 	DirAccess.make_dir_recursive_absolute(temp_dir)
-	var config_path := "%s/demo.json" % temp_dir
-	FileAccess.open(config_path, FileAccess.WRITE).store_string('{"transform":{"position":[1,2,3],"rotation_degrees":{"x":0,"y":90,"z":0},"scale":[2,2,2]}}')
+	var config_path := "%s/demo.config.yaml" % temp_dir
+	FileAccess.open(config_path, FileAccess.WRITE).store_string("transform:\n  position: [1, 2, 3]\n  rotation_degrees:\n    x: 0\n    y: 90\n    z: 0\n  scale: [2, 2, 2]\n")
 	var world_environment := WorldEnvironment.new()
 	var request := {
 		"request_id": "req-splat-config",

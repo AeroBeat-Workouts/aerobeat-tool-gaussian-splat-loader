@@ -4,6 +4,7 @@ extends "res://addons/aerobeat-environment-core/src/contracts/interfaces/environ
 const AeroEnvironmentProgress = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_progress.gd")
 const AeroEnvironmentRequestValidator = preload("res://addons/aerobeat-environment-core/src/contracts/validators/environment_request_validator.gd")
 const AeroEnvironmentConfigHelper = preload("res://addons/aerobeat-environment-core/src/contracts/validators/environment_config_helper.gd")
+const SimpleYamlParserScript = preload("AeroSimpleYamlParser.gd")
 const GaussianSplatManagerScript = preload("AeroGaussianSplatManager.gd")
 
 var _gaussian_manager: AeroGaussianSplatManager
@@ -424,13 +425,13 @@ func _apply_config_if_present(request: AeroEnvironmentRequest, target: Variant) 
 			"config_path": config_path,
 			"config": {},
 		}
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(absolute_path))
+	var parsed: Variant = SimpleYamlParserScript.new().parse_file(absolute_path)
 	if not (parsed is Dictionary):
 		return {
 			"ok": false,
-			"message": "Environment config is not a JSON object: %s" % config_path,
+			"message": "Environment config is not a YAML object: %s" % config_path,
 		}
-	var config_dict: Dictionary = parsed
+	var config_dict: Dictionary = Dictionary(parsed).duplicate(true)
 	var apply_result: Dictionary = AeroEnvironmentConfigHelper.apply_config_dict(config_dict, target as Node)
 	if not apply_result.get("ok", false):
 		return apply_result
