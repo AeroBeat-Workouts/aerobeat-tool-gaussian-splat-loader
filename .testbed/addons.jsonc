@@ -1,31 +1,30 @@
 {
   "$schema": "https://chickensoft.games/schemas/addons.schema.json",
   "addons": {
-    // Install the repo-root package directly so the hidden testbed exercises the
-    // same public src/ surface that real consumers use.
     "aerobeat-tool-gaussian-splat-loader": {
       "url": "..",
       "source": "symlink",
       "subfolder": "/"
     },
-    // Pin the vendor payload at res://addons/aerobeat-vendor-gdgs so upstream decoder/runtime
-    // paths stay honest.
     "aerobeat-vendor-gdgs": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-vendor-gdgs.git",
-      "checkout": "main",
-      "subfolder": "/src"
+      "url": "../../aerobeat-vendor-gdgs",
+      "subfolder": "/",
+      "source": "symlink"
     },
-    // Repo-local test dependency.
+    "aerobeat-tool-headless-manager": {
+      "url": "../../aerobeat-tool-headless-manager",
+      "subfolder": "/",
+      "source": "symlink"
+    },
     "gut": {
       "url": "git@github.com:bitwes/Gut.git",
       "checkout": "main",
       "subfolder": "/addons/gut"
     },
-    // Environment contract dependency used by the fulfillment seam.
     "aerobeat-environment-core": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-environment-core.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-environment-core",
+      "subfolder": "/",
+      "source": "symlink"
     }
   }
 }
